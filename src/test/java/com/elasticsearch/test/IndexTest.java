@@ -62,8 +62,8 @@ public class IndexTest {
 				//System.out.println(dt);
 				//System.out.println("dt "+new DateTime(  dt.toLocalDate().minusDays(3).toDate().getTime()).toString());
 				map.put("@timestamp", new DateTime( (dt.toLocalDate().minusDays(random.nextInt(100)).toDate().getTime()-1)).getMillis());
-				//map.put("message", "中华人民共和国成立了,我是中国人 ，南京市长江大桥");
-				
+				map.put("message", "中华人民共和国成立了,我是中国人 ，南京市长江大桥");
+				map.put("size", i);
 				//bulkRequest.add( client.prepareIndex("msg-test2","employee").setSource(map).setParent(pid));
 				bulkRequest.add( client.prepareIndex("kafka-test2","employee").setSource(map));
 				
@@ -150,7 +150,7 @@ public class IndexTest {
 	public static void main(String[] args) {
 		// DateTimeZone.setDefault(DateTimeZone.forID("Asia/Shanghai"));  
 		//String[] ips = { "192.168.6.203" };
-		String[] ips = { "127.0.0.1" };
+		String[] ips = { "localhost" };
 
 		
 		IndexTest test=new IndexTest("es-monitor", ips);
