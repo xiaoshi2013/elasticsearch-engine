@@ -1,55 +1,26 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.elasticsearch.index.engine.internal;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
@@ -65,6 +36,7 @@ import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -86,25 +58,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.CreateFailedEngineException;
-import org.elasticsearch.index.engine.DeleteByQueryFailedEngineException;
-import org.elasticsearch.index.engine.DeleteFailedEngineException;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineAlreadyStartedException;
-import org.elasticsearch.index.engine.EngineClosedException;
-import org.elasticsearch.index.engine.EngineCreationFailureException;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.FlushFailedEngineException;
-import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
-import org.elasticsearch.index.engine.IndexFailedEngineException;
-import org.elasticsearch.index.engine.OptimizeFailedEngineException;
-import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.engine.RefreshFailedEngineException;
-import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.engine.SnapshotFailedEngineException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -123,11 +77,22 @@ import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  *
  */
-public class ZyucInternalEngine extends AbstractIndexShardComponent implements Engine {
+public class AsynchronousEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile boolean failEngineOnCorruption;
     private volatile ByteSizeValue indexingBufferSize;
@@ -209,11 +174,10 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
     private IndexThrottle throttle;
     
     private AddTranslogThread addTranslogThread;
-  
 
 
     @Inject
-    public ZyucInternalEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
+    public AsynchronousEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
                           IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
                           Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
                           MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
@@ -257,10 +221,10 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
             this.mergeScheduler.addFailureListener(new FailEngineOnMergeFailure());
         }
         store.incRef();
-		
-	
-        addTranslogThread=new AddTranslogThread(this.translog, versionMap);
-        addTranslogThread.start();
+        
+        addTranslogThread=new AddTranslogThread(shardId,indexSettings,this.translog, versionMap);
+        Thread t=new Thread(addTranslogThread);
+        t.start();
     }
 
     @Override
@@ -481,6 +445,7 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
     }
 
     private void innerCreateNoLock(Create create, IndexWriter writer, long currentVersion, VersionValue versionValue) throws IOException {
+
         // same logic as index
         long updatedVersion;
         long expectedVersion = create.version();
@@ -524,15 +489,13 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
                 writer.addDocument(create.docs().get(0), create.analyzer());
             }
         }
-        
-        
-       //Translog.Location translogLocation = translog.add(new Translog.Create(create));
+        //Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
-       // versionMap.putUnderLock(create.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
+        //versionMap.putUnderLock(create.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
 
         addTranslogThread.add(create);
         
-        //indexingService.postCreateUnderLock(create);
+        indexingService.postCreateUnderLock(create);
     }
 
     @Override
@@ -558,7 +521,7 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
      */
     private void checkVersionMapRefresh() {
         // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsedForRefresh() > 0.75 * indexingBufferSize.bytes() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh() > 0.25 * indexingBufferSize.bytes() && versionMapRefreshPending.getAndSet(true) == false) {
             try {
                 if (closed) {
                     // no point...
@@ -933,7 +896,7 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
-                           // indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             // we need to refresh in order to clear older version values
                             refresh(new Refresh("version_table_flush").force(true));
@@ -966,7 +929,7 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
                     // other flushes use flushLock
                     try {
                         long translogId = translog.currentId();
-                       // indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                         indexWriter.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -1341,7 +1304,6 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
                     if (indexWriter != null) {
                         try {
                             indexWriter.rollback();
-                           addTranslogThread.close();
                         } catch (AlreadyClosedException e) {
                             // ignore
                         }
@@ -1509,52 +1471,52 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
 
         @Override
         public void onRefreshSettings(Settings settings) {
-            long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(ZyucInternalEngine.this.gcDeletesInMillis)).millis();
-            if (gcDeletesInMillis != ZyucInternalEngine.this.gcDeletesInMillis) {
-                logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(ZyucInternalEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
-                ZyucInternalEngine.this.gcDeletesInMillis = gcDeletesInMillis;
+            long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(AsynchronousEngine.this.gcDeletesInMillis)).millis();
+            if (gcDeletesInMillis != AsynchronousEngine.this.gcDeletesInMillis) {
+                logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(AsynchronousEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
+                AsynchronousEngine.this.gcDeletesInMillis = gcDeletesInMillis;
             }
 
-            final boolean compoundOnFlush = settings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, ZyucInternalEngine.this.compoundOnFlush);
-            if (compoundOnFlush != ZyucInternalEngine.this.compoundOnFlush) {
-                logger.info("updating {} from [{}] to [{}]", ZyucInternalEngine.INDEX_COMPOUND_ON_FLUSH, ZyucInternalEngine.this.compoundOnFlush, compoundOnFlush);
-                ZyucInternalEngine.this.compoundOnFlush = compoundOnFlush;
+            final boolean compoundOnFlush = settings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, AsynchronousEngine.this.compoundOnFlush);
+            if (compoundOnFlush != AsynchronousEngine.this.compoundOnFlush) {
+                logger.info("updating {} from [{}] to [{}]", AsynchronousEngine.INDEX_COMPOUND_ON_FLUSH, AsynchronousEngine.this.compoundOnFlush, compoundOnFlush);
+                AsynchronousEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
             }
             
-            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, ZyucInternalEngine.this.checksumOnMerge);
-            if (checksumOnMerge != ZyucInternalEngine.this.checksumOnMerge) {
-                logger.info("updating {} from [{}] to [{}]", ZyucInternalEngine.INDEX_CHECKSUM_ON_MERGE, ZyucInternalEngine.this.checksumOnMerge, checksumOnMerge);
-                ZyucInternalEngine.this.checksumOnMerge = checksumOnMerge;
+            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, AsynchronousEngine.this.checksumOnMerge);
+            if (checksumOnMerge != AsynchronousEngine.this.checksumOnMerge) {
+                logger.info("updating {} from [{}] to [{}]", AsynchronousEngine.INDEX_CHECKSUM_ON_MERGE, AsynchronousEngine.this.checksumOnMerge, checksumOnMerge);
+                AsynchronousEngine.this.checksumOnMerge = checksumOnMerge;
                 indexWriter.getConfig().setCheckIntegrityAtMerge(checksumOnMerge);
             }
 
-            ZyucInternalEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, ZyucInternalEngine.this.failEngineOnCorruption);
-            int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, ZyucInternalEngine.this.indexConcurrency);
-            boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, ZyucInternalEngine.this.failOnMergeFailure);
-            String codecName = settings.get(INDEX_CODEC, ZyucInternalEngine.this.codecName);
+            AsynchronousEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, AsynchronousEngine.this.failEngineOnCorruption);
+            int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, AsynchronousEngine.this.indexConcurrency);
+            boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, AsynchronousEngine.this.failOnMergeFailure);
+            String codecName = settings.get(INDEX_CODEC, AsynchronousEngine.this.codecName);
             final boolean codecBloomLoad = settings.getAsBoolean(CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter());
             boolean requiresFlushing = false;
-            if (indexConcurrency != ZyucInternalEngine.this.indexConcurrency ||
-                    !codecName.equals(ZyucInternalEngine.this.codecName) ||
-                    failOnMergeFailure != ZyucInternalEngine.this.failOnMergeFailure ||
+            if (indexConcurrency != AsynchronousEngine.this.indexConcurrency ||
+                    !codecName.equals(AsynchronousEngine.this.codecName) ||
+                    failOnMergeFailure != AsynchronousEngine.this.failOnMergeFailure ||
                     codecBloomLoad != codecService.isLoadBloomFilter()) {
                 try (InternalLock _ = readLock.acquire()) {
-                    if (indexConcurrency != ZyucInternalEngine.this.indexConcurrency) {
-                        logger.info("updating index.index_concurrency from [{}] to [{}]", ZyucInternalEngine.this.indexConcurrency, indexConcurrency);
-                        ZyucInternalEngine.this.indexConcurrency = indexConcurrency;
+                    if (indexConcurrency != AsynchronousEngine.this.indexConcurrency) {
+                        logger.info("updating index.index_concurrency from [{}] to [{}]", AsynchronousEngine.this.indexConcurrency, indexConcurrency);
+                        AsynchronousEngine.this.indexConcurrency = indexConcurrency;
                         // we have to flush in this case, since it only applies on a new index writer
                         requiresFlushing = true;
                     }
-                    if (!codecName.equals(ZyucInternalEngine.this.codecName)) {
-                        logger.info("updating index.codec from [{}] to [{}]", ZyucInternalEngine.this.codecName, codecName);
-                        ZyucInternalEngine.this.codecName = codecName;
+                    if (!codecName.equals(AsynchronousEngine.this.codecName)) {
+                        logger.info("updating index.codec from [{}] to [{}]", AsynchronousEngine.this.codecName, codecName);
+                        AsynchronousEngine.this.codecName = codecName;
                         // we want to flush in this case, so the new codec will be reflected right away...
                         requiresFlushing = true;
                     }
-                    if (failOnMergeFailure != ZyucInternalEngine.this.failOnMergeFailure) {
-                        logger.info("updating {} from [{}] to [{}]", ZyucInternalEngine.INDEX_FAIL_ON_MERGE_FAILURE, ZyucInternalEngine.this.failOnMergeFailure, failOnMergeFailure);
-                        ZyucInternalEngine.this.failOnMergeFailure = failOnMergeFailure;
+                    if (failOnMergeFailure != AsynchronousEngine.this.failOnMergeFailure) {
+                        logger.info("updating {} from [{}] to [{}]", AsynchronousEngine.INDEX_FAIL_ON_MERGE_FAILURE, AsynchronousEngine.this.failOnMergeFailure, failOnMergeFailure);
+                        AsynchronousEngine.this.failOnMergeFailure = failOnMergeFailure;
                     }
                     if (codecBloomLoad != codecService.isLoadBloomFilter()) {
                         logger.info("updating {} from [{}] to [{}]", CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter(), codecBloomLoad);
@@ -1839,103 +1801,4 @@ public class ZyucInternalEngine extends AbstractIndexShardComponent implements E
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
         }
     }
-    
-    
-    private class AddTranslogThread extends Thread {
-
-    	private Translog translog;
-
-    	private final LiveVersionMap versionMap;
-
-    	private final LinkedBlockingQueue<Create> queue;
-    	
-    	int size=33554432;
-    	
-    	 //private final DB db;
-    	 //private final Map mapdb;
-    	    
-    		volatile boolean b = true;
-
-    	public AddTranslogThread(Translog translog, LiveVersionMap versionMap) {
-    		this.translog = translog;
-    		this.versionMap = versionMap;
-
-    		queue = new LinkedBlockingQueue<>(size);
-    		
-    		 
-        /*    File[] fs= ((FsTranslog)translog).locations();
-    		
-    		File fdb=new File("/test/mapdb");
-    		
-    		db = DBMaker.newFileDB(fdb)
-    	            .transactionDisable()
-    	            .asyncWriteEnable()
-    	            //.asyncWriteFlushDelay(100)
-    	            .compressionEnable()
-    	            .mmapFileEnableIfSupported().make();
-    		mapdb= db.getTreeMap("es");*/
-    	}
-
-    	public void add(Create create) {
-
-    		int n=queue.size();
-    		if (n >= 10000) {
-    			System.out.println("AddTranslogThread queue tooo big " + n);
-
-    		}
-
-    		queue.add(create);
-
-    	}
-
-    	@Override
-    	public void run() {
-
-    	
-
-    		while (b) {
-    			Create create = queue.poll();
-    			if (create == null) {
-    				try {
-    					TimeUnit.MILLISECONDS.sleep(50);
-    				} catch (InterruptedException e) {
-    					e.printStackTrace();
-    				}
-
-    				continue;
-
-    			} else {
-    				
-    				//mapdb.put(create.id(), create.source());
-    				org.elasticsearch.index.translog.Translog.Create operation = new Translog.Create(create);
-    				Translog.Location translogLocation = translog.add(operation);
-    				versionMap.putUnderLock(create.uid().bytes(), new VersionValue(create.version(), translogLocation));
-    			}
-    			
-
-    		}
-
-    	}
-    	
-    	public void close(){
-    		while(!queue.isEmpty()){
-    			try {
-    				TimeUnit.MILLISECONDS.sleep(50);
-    			} catch (InterruptedException e) {
-    				// TODO Auto-generated catch block
-    				e.printStackTrace();
-    			}
-    			
-    		}
-    		
-    		b=false;
-    		
-    		//db.commit();
-    		//db.close();
-    		
-    		
-    	}
-
-    }
-
 }

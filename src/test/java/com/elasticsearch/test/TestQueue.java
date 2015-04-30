@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 
-public class Test1 {
+public class TestQueue {
 	
 
 	
@@ -17,7 +17,7 @@ public class Test1 {
 		 final int n=10_000_0000;
 		// final ArrayDeque<String> queue = new ArrayDeque(n);
 		// final LinkedBlockingDeque<String> queue=new LinkedBlockingDeque<>(n);
-		 final LinkedBlockingQueue<String> queue=new LinkedBlockingQueue<>(100000000);
+		 final LinkedBlockingQueue<String> queue=new LinkedBlockingQueue<>(n);
 		// final ArrayBlockingQueue<String> queue=new ArrayBlockingQueue<>(n);
 		 
 		 //final ConcurrentLinkedDeque<String> queue=new ConcurrentLinkedDeque<>(); // 最快 17秒之内
@@ -41,8 +41,8 @@ public class Test1 {
 					}
 					if(queue.isEmpty()){
 						try {
-						System.out.println("-- "+atom);
-							TimeUnit.MILLISECONDS.sleep(50);
+						//System.out.println("-- "+atom);
+							TimeUnit.MILLISECONDS.sleep(10);
 						} catch (InterruptedException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
@@ -65,8 +65,8 @@ public class Test1 {
 		 for (int i = 0; i < n; i++) {
 			 
 			 try {
-				 if(queue.size()>=1000000){
-					 System.out.println("queue.size >");
+				 if(queue.size()>=1_000_000){
+					 System.out.println("queue.size > "+1_000_000);
 					 TimeUnit.MILLISECONDS.sleep(50);
 
 				 }

@@ -1,6 +1,8 @@
 package com.elasticsearch.test;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -37,15 +39,18 @@ public class IndexTest {
 		this.client = tc;
 	}
 
-	public void test(){
-		Map<String, Object> map=new HashMap<String, Object>();
+	public void test() throws IOException{
+		
+		final List<Map> list=Utils.getListMap();
+
+		int size=list.size();
 		
 		
 		Random random=new Random();
 
 		
 		
-		for (int j = 0; j < 10; j++) {
+		for (int j = 0; j < 30; j++) {
 			long start=System.currentTimeMillis();
 			
 			/*String pid=new DateTime().getMillis()+"";
@@ -57,15 +62,21 @@ public class IndexTest {
 
 			BulkRequestBuilder bulkRequest = client.prepareBulk();
 
-			for (int i = 0; i < 10000; i++) {
-				DateTime dt=new DateTime();
+			for (int i = 0; i < size; i++) {
+				/*DateTime dt=new DateTime();
 				//System.out.println(dt);
 				//System.out.println("dt "+new DateTime(  dt.toLocalDate().minusDays(3).toDate().getTime()).toString());
 				map.put("@timestamp", new DateTime( (dt.toLocalDate().minusDays(random.nextInt(100)).toDate().getTime()-1)).getMillis());
-				//map.put("message", "中华人民共和国成立了,我是中国人 ，南京市长江大桥");
-				
+				map.put("message", "中华人民共和国成立了,我是中国人 ，南京市长江大桥");
+				map.put("size", i);
 				//bulkRequest.add( client.prepareIndex("msg-test2","employee").setSource(map).setParent(pid));
-				bulkRequest.add( client.prepareIndex("kafka-test2","employee").setSource(map));
+				bulkRequest.add( client.prepareIndex("kafka-test2","employee").setSource(map));*/
+				
+				Map<String, Object> map=list.get(i);
+
+				
+				bulkRequest.add( client.prepareIndex("kafka-test3","employee").setSource(map));
+
 				
 
 			}
@@ -147,10 +158,10 @@ public class IndexTest {
 	}
 	
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
 		// DateTimeZone.setDefault(DateTimeZone.forID("Asia/Shanghai"));  
 		//String[] ips = { "192.168.6.203" };
-		String[] ips = { "127.0.0.1" };
+		String[] ips = { "localhost" };
 
 		
 		IndexTest test=new IndexTest("es-monitor", ips);
