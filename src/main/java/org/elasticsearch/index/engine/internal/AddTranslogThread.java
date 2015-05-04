@@ -75,7 +75,7 @@ public class AddTranslogThread extends AbstractIndexShardComponent implements Ru
 				// mapdb.put(create.id(), create.source());
 				org.elasticsearch.index.translog.Translog.Create operation = new Translog.Create(create);
 				Translog.Location translogLocation = translog.add(operation);
-				versionMap.putUnderLock(create.uid().bytes(), new VersionValue(create.version(), translogLocation));
+				//versionMap.putUnderLock(create.uid().bytes(), new VersionValue(create.version(), translogLocation));
 			}
 
 		}
