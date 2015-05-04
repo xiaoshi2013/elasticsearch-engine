@@ -47,7 +47,7 @@ public class AddTranslogThread extends AbstractIndexShardComponent implements Ru
 	public void add(Create create) {
 
 		int n = queue.size();
-		if (n >= 100000) {
+		if (n >= 1000) {
 		    logger.info("Queue length is too long [{}]", n);
 
 		}

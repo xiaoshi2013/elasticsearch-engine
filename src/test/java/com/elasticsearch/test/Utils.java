@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.common.collect.Lists;
@@ -75,7 +76,7 @@ public class Utils {
 			DateTime dt = new DateTime(Long.valueOf(time));
 			dt = dt.withYear(2015);
 
-			// map.put("@timestamp", dt);
+			map.put("@timestamp", dt);
 			DateTime dtc = new DateTime();
 			// System.out.println(dtc);
 			// map.put("@timestamp_c",dtc);
@@ -90,5 +91,14 @@ public class Utils {
 		}
 		return list;
 
+	}
+	
+	public static void main(String[] args) {
+		
+		DateTime dt=new DateTime();
+		
+		dt=new DateTime( (dt.toLocalDate().minusDays(ThreadLocalRandom.current().nextInt(100)).toDate().getTime()-1));
+		
+		System.out.println(dt);
 	}
 }

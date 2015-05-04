@@ -5,18 +5,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 
 public class IndexTest {
 	
@@ -43,51 +50,68 @@ public class IndexTest {
 		
 		final List<Map> list=Utils.getListMap();
 
-		int size=list.size();
+		final int size=list.size();
 		
 		
-		Random random=new Random();
-
+		final CountDownLatch down=new CountDownLatch(8);
 		
-		
-		for (int j = 0; j < 30; j++) {
-			long start=System.currentTimeMillis();
-			
-			/*String pid=new DateTime().getMillis()+"";
-			map.put("@timestamp", new DateTime().getMillis());
+		long start0=System.currentTimeMillis();
 
-			
-			 client.prepareIndex("msg-test2","branch").setSource(map).setId(pid).execute().actionGet();*/
-			 
-
-			BulkRequestBuilder bulkRequest = client.prepareBulk();
-
-			for (int i = 0; i < size; i++) {
-				/*DateTime dt=new DateTime();
-				//System.out.println(dt);
-				//System.out.println("dt "+new DateTime(  dt.toLocalDate().minusDays(3).toDate().getTime()).toString());
-				map.put("@timestamp", new DateTime( (dt.toLocalDate().minusDays(random.nextInt(100)).toDate().getTime()-1)).getMillis());
-				map.put("message", "中华人民共和国成立了,我是中国人 ，南京市长江大桥");
-				map.put("size", i);
-				//bulkRequest.add( client.prepareIndex("msg-test2","employee").setSource(map).setParent(pid));
-				bulkRequest.add( client.prepareIndex("kafka-test2","employee").setSource(map));*/
+		for (int i1 = 0; i1 < 8; i1++) {
+			Thread t=new Thread(new Runnable() {
 				
-				Map<String, Object> map=list.get(i);
+				@Override
+				public void run() {
+					for (int j = 0; j < 1250; j++) {
+						long start=System.currentTimeMillis();
+						
+						/*String pid=new DateTime().getMillis()+"";
+						map.put("@timestamp", new DateTime().getMillis());
 
-				
-				bulkRequest.add( client.prepareIndex("kafka-test3","employee").setSource(map));
+						
+						 client.prepareIndex("msg-test2","branch").setSource(map).setId(pid).execute().actionGet();*/
+						 
 
-				
+						BulkRequestBuilder bulkRequest = client.prepareBulk();
 
-			}
+						for (int i = 0; i < size; i++) {
+							Map<String, Object> map=list.get(i);
+							DateTime dt= new  DateTime( map.get("@timestamp"));
+							map.put("@timestamp", new DateTime( (dt.toLocalDate().minusDays(ThreadLocalRandom.current().nextInt(100)).toDate().getTime()-1)));
+							
+							bulkRequest.add( client.prepareIndex("notemplate-test1","employee").setSource(map))
+							.setConsistencyLevel(WriteConsistencyLevel.ONE)
+							.setReplicationType(ReplicationType.ASYNC)
+							;
+
+						}
+						
+						BulkResponse bulkResponse = bulkRequest.execute().actionGet();
+					//	if(bulkResponse.getTookInMillis()>=100){
+							System.out.println(Thread.currentThread().getName()+ "  Took "+bulkResponse.getTookInMillis()+"ms   "+(System.currentTimeMillis()-start)+" ms");
+
+					//	}
+					}
+					down.countDown();
+				}
+			});
+			t.start();
+
+		
 			
-			BulkResponse bulkResponse = bulkRequest.execute().actionGet();
-
-			System.out.println("Took "+bulkResponse.getTookInMillis()+"ms");
-			System.out.println((System.currentTimeMillis()-start)+" ms");
 		}
+
 		
-	
+
+		try {
+			down.await();
+			System.out.println("over  "+(System.currentTimeMillis()-start0)+" ms");
+
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 	}
 	
 	
@@ -105,8 +129,8 @@ public class IndexTest {
 					.execute().actionGet();*/
 	
 	
-		SearchResponse res=	client.prepareSearch("msg-test1").setSize(0)
-		.addAggregation(AggregationBuilders.stats("tim").field("@timestamp"))
+		SearchResponse res=	client.prepareSearch("kafka-test4").setQuery(QueryBuilders.matchAllQuery())
+				.addSort(SortBuilders.fieldSort("@timestamp"))
 				.execute().actionGet();
 		
 	
@@ -160,15 +184,18 @@ public class IndexTest {
 
 	public static void main(String[] args) throws IOException {
 		// DateTimeZone.setDefault(DateTimeZone.forID("Asia/Shanghai"));  
-		//String[] ips = { "192.168.6.203" };
-		String[] ips = { "localhost" };
+		//String[] ips = { "localhost" };
+		String[] ips = { "192.168.6.207" };
 
 		
-		IndexTest test=new IndexTest("es-monitor", ips);
-		
+		//IndexTest test=new IndexTest("es-monitor", ips);
+		IndexTest test=new IndexTest("test", ips);
+
 		test.test();
-
-		//test.testQuery();
+/*for (int i = 0; i < 100; i++) {
+	test.testQuery();
+}
+	*/
 		
 		//test.testAgg();
 		test.client.close();

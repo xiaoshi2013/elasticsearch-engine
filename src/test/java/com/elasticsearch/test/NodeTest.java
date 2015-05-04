@@ -19,7 +19,7 @@ public class NodeTest {
 	               // .put("discovery.zen.ping.multicast.enabled",false )
 	                //.put("node.name", "zl")
 	                .put("http.cors.enabled", true)
-	                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+	                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
 	                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
 	                //.put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
 	                .put("http.enabled", true)

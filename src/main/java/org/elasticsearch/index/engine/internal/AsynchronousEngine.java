@@ -274,7 +274,7 @@ public class AsynchronousEngine extends AbstractIndexShardComponent implements E
                 throw new EngineClosedException(shardId);
             }
             if (logger.isDebugEnabled()) {
-                logger.debug("starting engine");
+                logger.debug("starting AsynchronousEngine");
             }
             try {
                 this.indexWriter = createWriter();
