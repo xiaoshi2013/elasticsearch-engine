@@ -1,0 +1,177 @@
+PUT /_cluster/settings
+{
+  "transient": {
+    "logger.index.translog.fs": "TRACE"
+  }
+}
+
+
+
+PUT /_cluster/settings
+{
+  "transient": {
+    "logger.index.merge.scheduler": "TRACE"
+  }
+}
+
+
+PUT /_settings
+{
+   "index": {
+      "merge.scheduler.max_merge_count": 4,
+      "merge.scheduler.max_thread_count": 1,
+      "refresh_interval" : "30s"
+   }
+}
+
+PUT /_cluster/settings
+{
+   "transient": {
+      "indices.store.throttle.type": "none"
+   }
+}
+
+curl -XPUT '127.0.0.1:9200/kafka*/_settings' -d '
+{
+    "index" : {
+         "gateway.local.sync": "120s"
+    }
+}'
+
+curl -XPUT '127.0.0.1:9200/_settings' -d '
+{
+    "index" : {
+        "translog.flush_threshold_size": "512m" 
+    } }
+'
+
+curl -XPUT '127.0.0.1:9200/_settings' -d '
+{
+    "index" : {
+        "translog.flush_threshold_period": "3600s" 
+    } }
+'
+
+curl -XPUT '127.0.0.1:9200/_settings' -d '
+{
+    "index" : {
+        "merge.policy.max_merged_segment" : "1g"
+    } 
+}'
+
+index.warmer 
+
+index.merge.scheduler
+
+index.translog.fs 
+
+
+
+PUT /_template/template_2
+{
+   "order": 1,
+   "template": "kafka*",
+   "settings": {
+      "index.number_of_replicas": "1",
+      "index.number_of_shards": "4",
+      "index.refresh_interval": "30s",
+      "index.gateway.local.sync": "120s",
+      "index.translog.flush_threshold_size": "512m",
+      "index.translog.flush_threshold_period": "3600s",
+      "index.merge.policy.max_merged_segment": "1g",
+      "index.merge.scheduler.max_merge_count": 4,
+      "index.merge.scheduler.max_thread_count": 1
+   },
+   "mappings": {
+      "_default_": {
+         "_source": {
+            "includes": [
+               "@message"
+            ]
+         },
+         "_all": {
+            "enabled": false
+         }
+      }
+   }
+}
+
+
+PUT /_template/template_2
+{
+  "order": 1,
+  "template": "kafka*",
+  "settings": {
+    "index.number_of_replicas": "0",
+    "index.number_of_shards": "4",
+    "index.refresh_interval": "30s",
+    "index.gateway.local.sync": "120s",
+    "index.translog.flush_threshold_size": "512m",
+    "index.translog.flush_threshold_period": "3600s",
+    "index.merge.policy.max_merged_segment": "1g",
+    "index.merge.scheduler.max_merge_count": 4,
+    "index.merge.scheduler.max_thread_count": 1
+  },
+  "mappings": {
+    "_default_": {
+      "_all": {
+        "enabled": false
+      }
+    },
+    "employee": {
+      "_all": {
+        "enabled": false
+      },
+      "properties": {
+        "@message": {
+          "type": "string"
+        },
+        "@timestamp": {
+          "index": "no",
+          "type": "date",
+          "format": "dateOptionalTime",
+          "doc_values": true
+        },
+        "method": {
+          "type": "string",
+          "index": "no",
+          "doc_values": true
+        },
+        "response": {
+          "type": "long",
+          "index": "no",
+          "doc_values": true
+        },
+        "size": {
+          "type": "long",
+          "index": "no",
+          "doc_values": true
+        },
+        "srcip": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "status": {
+          "type": "string",
+          "index": "no",
+          "doc_values": true
+        },
+        "status_code": {
+          "type": "string",
+          "index": "no",
+          "doc_values": true
+        }
+      }
+    }
+  }
+}
+
+
+1千万数据 用插件over  387372 ms  每秒25819条
+
+不用插件 400万  over  145151 ms  每秒27000  1千万 441秒 每秒 22675.7条
+
+
+1千万 不存source  over  290713 ms  每秒 34399条
+
+1千万 source只存@message    406861 ms  每秒24630秒   423196 ms   419681 ms    427770 ms
